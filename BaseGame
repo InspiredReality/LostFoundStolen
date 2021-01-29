@@ -1,0 +1,168 @@
+enum signalStates {INERT, GO, RESOLVE};  //00, 01, 10
+byte signalState = INERT;
+enum gamePhases {SETUP, SELECTED, PLAY, KILLED}; //game phases, 00, 01, 10, 11
+byte gamePhase = SETUP;  //the default game phase when the game begins
+byte clickDim = 255;
+byte secretNumber = 0;
+bool hideSecret = false;
+bool amTreasure = false;
+//will be real # -1
+Color colors[] = { RED, BLUE, YELLOW };
+byte currentColorIndex = 1;
+
+void setup() {
+  // put your setup code here, to run once:
+
+}
+
+void loop() {
+  if ( buttonPressed() ){
+    clickDim = 155;
+  }
+  if ( buttonReleased() ){
+    clickDim = 255;    
+  }
+
+
+  switch (signalState) {
+    case INERT:
+      inertLoop();
+      break;
+    case GO:
+      goLoop();
+      break;
+    case RESOLVE:
+      resolveLoop();
+      break;
+  }
+
+    displayFaceColor();
+
+  FOREACH_FACE(f) {
+    byte sendData = (signalState << 2) + (gamePhase);
+//    byte sendData = (gamePhase << 4) + (fortifySignal[f] << 2) + (popState);
+    setValueSentOnFace(sendData, f);
+  }
+}
+
+void inertLoop() {
+  if ( gamePhase == SETUP) {
+//      if (buttonReleased() ) {
+      if ( buttonSingleClicked() && !hideSecret && !amTreasure) {
+        //increment clickCount 
+        secretNumber = (secretNumber + 1) % 6;
+      }
+//      if ( buttonSingleClicked() && amTreasure) {
+      if ( buttonMultiClicked() && buttonClickCount() == 3 && amTreasure) {
+        //reveal numbers when Treasure is clicked 
+        signalState = GO;
+      }
+    if (buttonDoubleClicked()) {
+      hideSecret = !hideSecret;
+    }
+    if (buttonLongPressed()) {
+      amTreasure = !amTreasure;
+      hideSecret = false;
+    }
+  }
+
+
+  FOREACH_FACE(f) {
+    if (!isValueReceivedOnFaceExpired(f)) {//we have a neighbor
+      if (getSignalState(getLastValueReceivedOnFace(f)) == GO) {
+        signalState = GO;
+        //reveal numbers
+        hideSecret = false;
+      }
+    }
+  }
+}
+
+void goLoop() {
+    signalState = RESOLVE;//I default to this at the start of the loop. Only if I see a problem does this not happen
+
+    //reveal numbers
+    hideSecret = false;
+    
+  //look for neighbors who have not heard the GO news
+  FOREACH_FACE(f) {
+    if (!isValueReceivedOnFaceExpired(f)) {//a neighbor!
+      if (getSignalState(getLastValueReceivedOnFace(f)) == INERT) {//This neighbor doesn't know it's GO time. Stay in GO
+        signalState = GO;
+      }
+    }
+  }
+}
+
+void resolveLoop() {
+    signalState = INERT;//I default to this at the start of the loop. Only if I see a problem does this not happen
+
+  //look for neighbors who have not moved to RESOLVE
+  FOREACH_FACE(f) {
+    if (!isValueReceivedOnFaceExpired(f)) {//a neighbor!
+      if (getSignalState(getLastValueReceivedOnFace(f)) == GO) {//This neighbor isn't in RESOLVE. Stay in RESOLVE
+        signalState = RESOLVE;
+      }
+    }
+  }
+}
+
+
+void displayFaceColor() {
+//    setColor(dim(colors[currentColorIndex],clickDim));  
+  //default OFF to stop color lingering
+  setColor(OFF);
+    
+  switch (signalState) {
+    case INERT:
+      switch (gamePhase) {
+        case SETUP:
+          FOREACH_FACE(f) {
+            if (f <= secretNumber) {
+              setColorOnFace(dim(colors[currentColorIndex],clickDim),f);
+            }
+          }
+          if (hideSecret) {
+            //make all faces your team color
+//              setColorOnFace(dim(colors[currentColorIndex],clickDim),f);
+            setColor(dim(colors[currentColorIndex],clickDim));
+          }
+          if (amTreasure) {
+            //make all faces treasure color
+            setColorOnFace(YELLOW, 0);
+            setColorOnFace(ORANGE, 1);
+            setColorOnFace(YELLOW, 2);
+            setColorOnFace(ORANGE, 3);
+            setColorOnFace(YELLOW, 4);
+            setColorOnFace(ORANGE, 5);
+          }
+          
+          break;
+        case PLAY:
+
+          break;
+        case SELECTED:
+          break;
+        case KILLED:
+          break;
+      }
+      break;
+    case GO:
+      setColor(MAGENTA);
+      break;
+    case RESOLVE:
+      setColor(WHITE);
+      break;
+  }
+}
+
+
+byte getGamePhase(byte data) {
+    return (data & 3);//returns bits E and F
+}
+
+byte getSignalState(byte data) {
+    return ((data >> 2) & 3);//returns bits C and D
+}
+
+
