@@ -13,6 +13,7 @@ Your blink stays attached and is worth the value of the points you selected - bu
 
 Play 3 rounds or until the blink fills up. Once you have attached your blink you are done. Whoever attaches the highest number wins after three rounds, or if a player plays a 6 by themselves they win.
 
+
 For example in a 5p game.
 
 </br> Player 1 chooses 6
