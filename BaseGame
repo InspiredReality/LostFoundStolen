@@ -7,8 +7,8 @@ byte secretNumber = 0;
 bool hideSecret = false;
 bool amTreasure = false;
 //will be real # -1
-Color colors[] = { RED, BLUE, YELLOW };
-byte currentColorIndex = 1;
+Color teamColors[] = { RED, YELLOW, GREEN, BLUE, MAGENTA, WHITE };
+byte currentTeamColor = 0;
 
 void setup() {
   // put your setup code here, to run once:
@@ -47,23 +47,29 @@ void loop() {
 
 void inertLoop() {
   if ( gamePhase == SETUP) {
-//      if (buttonReleased() ) {
-      if ( buttonSingleClicked() && !hideSecret && !amTreasure) {
-        //increment clickCount 
-        secretNumber = (secretNumber + 1) % 6;
-      }
-//      if ( buttonSingleClicked() && amTreasure) {
-      if ( buttonMultiClicked() && buttonClickCount() == 3 && amTreasure) {
-        //reveal numbers when Treasure is clicked 
-        signalState = GO;
-      }
+    if (buttonLongPressed()) {
+        //cycle team color
+        currentTeamColor = (currentTeamColor + 1) % 6;
+    }
+    if ( buttonSingleClicked()) {
+        if(!hideSecret && !amTreasure) {
+          //increment clickCount 
+          secretNumber = (secretNumber + 1) % 6;
+        }
+        else if (amTreasure) {
+          //reveal numbers when Treasure is clicked 
+          signalState = GO;
+        }
+    }
+    
     if (buttonDoubleClicked()) {
       hideSecret = !hideSecret;
     }
-    if (buttonLongPressed()) {
+    if (buttonMultiClicked() && buttonClickCount() == 3) {      
       amTreasure = !amTreasure;
       hideSecret = false;
     }
+
   }
 
 
@@ -119,13 +125,12 @@ void displayFaceColor() {
         case SETUP:
           FOREACH_FACE(f) {
             if (f <= secretNumber) {
-              setColorOnFace(dim(colors[currentColorIndex],clickDim),f);
+              setColorOnFace(dim(teamColors[currentTeamColor],clickDim),f);
             }
           }
           if (hideSecret) {
             //make all faces your team color
-//              setColorOnFace(dim(colors[currentColorIndex],clickDim),f);
-            setColor(dim(colors[currentColorIndex],clickDim));
+            setColor(dim(teamColors[currentTeamColor],clickDim));
           }
           if (amTreasure) {
             //make all faces treasure color
