@@ -1,11 +1,9 @@
-# LostTreasure
-maybe
-# LostFoundStolen Treasure
+# Lost Found & Stolen
 
 ## ::Game Description::
 
-Everyone is searching for lost treasure which is a gold blink in the middle.
-Whoever surrounds the gold with the most blinks wins.
+You lead a gang of bandits going up against other gangs, searching searching for the same lost treasure. Everyone rushes to the loot but only one team can sneak away with it. Each round all players (2-6 players) determine their secret number between 1 & 6, then place one Bandit Blink on the Treasure Blink. Tap the Treasure Blink to calculate who wins the roung and if you have the highest unique number compared to the other teams, you win that round. If there are no unique numbers (everyone picks 5 for example) then nobody wins that round.
+
 Players click their blinks and secretly set it to a number from 1 to 6.
 Players then double click their blink to go to their set color and hide what number they chose.
 When everyone has chosen a number they attach their blinks to the gold blink. 
