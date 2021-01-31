@@ -15,6 +15,7 @@ byte treasureSecretsReceived[6] = {0, 0, 0, 0, 0, 0}; // reads all faces to comp
 enum roles {TEAMCOUNTER, TREASURE};  //0, 1 in [F]
 byte role = TEAMCOUNTER;
 bool amTreasure = false;
+bool amTeamTreasure = false;
 
 byte treasureDisplay[6] = {TREASURE, TREASURE, TREASURE, TREASURE, TREASURE, TREASURE};
 //TREASURE sparkle or TEAMCOLOR
@@ -89,7 +90,8 @@ void inertLoop() {
   if (buttonMultiClicked() && buttonClickCount() == 3) {
     amTreasure = !amTreasure;
     if(amTreasure){
-      role = TREASURE;    
+      role = TREASURE;
+      amTeamTreasure = false;
     }
     else{
       role = TEAMCOUNTER;
@@ -112,6 +114,7 @@ void inertLoop() {
           else{
             if(getSecretNumber(getLastValueReceivedOnFace(f)) == WINNER){
               amTreasure = true;
+              amTeamTreasure = true;
               role = TREASURE;
               displayColor[0] = WHITE;
               displayColor[1] = WHITE;
@@ -120,15 +123,15 @@ void inertLoop() {
               displayColor[4] = WHITE;
               displayColor[5] = WHITE;
               teamColorTreasure = f;
-              displayColor[teamColorTreasure] = teamColors[currentTeamColor];
+              displayColor[f] = teamColors[currentTeamColor];
             }
           }
         }
 
-        //if no neighbor is TEAMCOUNTER then act like single click
-        if(amTreasure && getRole(getLastValueReceivedOnFace(f)) == TEAMCOUNTER) {
-          stopRefresh = true;
-        }
+//        //if no neighbor is TEAMCOUNTER then act like single click
+//        if(amTreasure && getRole(getLastValueReceivedOnFace(f)) == TEAMCOUNTER) {
+//          stopRefresh = true;
+//        }
         
       }
     }
@@ -214,16 +217,17 @@ void displayFaceColor() {
         if (!amTreasure && f <= secretNumberIterator) {
           setColorOnFace(dim(teamColors[currentTeamColor],clickDim),f);
         }
+        if ( amTreasure ) {
+          setColorOnFace(displayColor[f],f);
+ 
+          if(amTeamTreasure) {
+            setColorOnFace(teamColors[currentTeamColor],teamColorTreasure);  
+          }
+        }
       }
       if (!amTreasure && hideSecret) {
         //make all faces your team color
         setColor(dim(teamColors[currentTeamColor],clickDim));
-      }
-      if ( amTreasure ) {
-        FOREACH_FACE(f) {
-          setColorOnFace(displayColor[f],f);
-        }
-        setColorOnFace(teamColors[currentTeamColor],teamColorTreasure);
       }
       break;
     case GO:
