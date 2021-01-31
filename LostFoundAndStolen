@@ -27,11 +27,13 @@ bool hideSecret = false;
 Color teamColors[] = { RED, YELLOW, GREEN, BLUE, MAGENTA, WHITE };
 byte currentTeamColor = 0;
 Color displayColor[] = {CYAN, WHITE,CYAN, WHITE,CYAN, WHITE};
+byte teamColorTreasure;
 
 byte winningFace = 6;
 byte troubleshootFace = 6;
 byte winningFaceArray[6] = {0, 0, 0, 0, 0, 0}; 
 bool isWinner = false;
+bool stopRefresh = false;
 
 Timer checkWinnerGoTimer;
 #define CHECKING_DURATION 3000
@@ -107,9 +109,41 @@ void inertLoop() {
           if(amTreasure) {
            checkForWinner();
           }
+          else{
+            if(getSecretNumber(getLastValueReceivedOnFace(f)) == WINNER){
+              amTreasure = true;
+              role = TREASURE;
+              displayColor[0] = WHITE;
+              displayColor[1] = WHITE;
+              displayColor[2] = WHITE;
+              displayColor[3] = WHITE;
+              displayColor[4] = WHITE;
+              displayColor[5] = WHITE;
+              teamColorTreasure = f;
+              displayColor[teamColorTreasure] = teamColors[currentTeamColor];
+            }
+          }
         }
+
+        //if no neighbor is TEAMCOUNTER then act like single click
+        if(amTreasure && getRole(getLastValueReceivedOnFace(f)) == TEAMCOUNTER) {
+          stopRefresh = true;
+        }
+        
       }
     }
+
+//    if(stopRefresh){
+//        displayColor[0] = CYAN;
+//        displayColor[1] = WHITE;
+//        displayColor[2] = CYAN;
+//        displayColor[3] = WHITE;
+//        displayColor[4] = CYAN;
+//        displayColor[5] = WHITE;
+//        stopRefresh = true;
+//    }
+    
+    
     //only TEAMCOUNTER sets secretNumber
   if(!amTreasure){
     FOREACH_FACE(f) {
@@ -189,6 +223,7 @@ void displayFaceColor() {
         FOREACH_FACE(f) {
           setColorOnFace(displayColor[f],f);
         }
+        setColorOnFace(teamColors[currentTeamColor],teamColorTreasure);
       }
       break;
     case GO:
@@ -227,10 +262,13 @@ void checkForWinner(){
               treasureSecretsReceived[f] = 6;
               break;
           }
+
+         if(getRole(getLastValueReceivedOnFace(f)) == TREASURE){
+              treasureSecretsReceived[f] = 0;
+         }
        }
-//    }
   }
-//
+
         displayColor[0] = CYAN;
         displayColor[1] = WHITE;
         displayColor[2] = CYAN;
@@ -249,7 +287,7 @@ void checkForWinner(){
     displayColor[3] = OFF;
     displayColor[4] = OFF;
     displayColor[5] = YELLOW;
-//    secretNumber[winningFace] = WINNER;
+    secretNumber[0] = WINNER;
   }
   else if(treasureSecretsReceived[1] > treasureSecretsReceived[0] && 
   treasureSecretsReceived[1] > treasureSecretsReceived[2] && 
@@ -262,7 +300,7 @@ void checkForWinner(){
     displayColor[3] = OFF;
     displayColor[4] = OFF;
     displayColor[5] = OFF;
-//    secretNumber[winningFace] = WINNER;
+    secretNumber[1] = WINNER;
   }
   else if(treasureSecretsReceived[2] > treasureSecretsReceived[0] && 
   treasureSecretsReceived[2] > treasureSecretsReceived[1] && 
@@ -275,7 +313,7 @@ void checkForWinner(){
     displayColor[3] = YELLOW;
     displayColor[4] = OFF;
     displayColor[5] = OFF;
-//    secretNumber[winningFace] = WINNER;
+    secretNumber[2] = WINNER;
   }
   else if(treasureSecretsReceived[3] > treasureSecretsReceived[0] && 
   treasureSecretsReceived[3] > treasureSecretsReceived[1] && 
@@ -288,7 +326,7 @@ void checkForWinner(){
     displayColor[3] = WHITE;
     displayColor[4] = YELLOW;
     displayColor[5] = OFF;
-//    secretNumber[winningFace] = WINNER;
+    secretNumber[3] = WINNER;
   }
   else if(treasureSecretsReceived[4] > treasureSecretsReceived[0] && 
   treasureSecretsReceived[4] > treasureSecretsReceived[1] && 
@@ -301,7 +339,7 @@ void checkForWinner(){
     displayColor[3] = YELLOW;
     displayColor[4] = WHITE;
     displayColor[5] = YELLOW;
-//    secretNumber[winningFace] = WINNER;
+    secretNumber[4] = WINNER;
   }
   else if(treasureSecretsReceived[5] > treasureSecretsReceived[0] && 
   treasureSecretsReceived[5] > treasureSecretsReceived[1] && 
@@ -315,8 +353,12 @@ void checkForWinner(){
     displayColor[4] = YELLOW;
     displayColor[5] = WHITE;
 //    secretNumber[winningFace] = WINNER;          
+    secretNumber[5] = WINNER;
   }
+
+  
   signalState = GO;
+  stopRefresh = false;
 }
 
 
