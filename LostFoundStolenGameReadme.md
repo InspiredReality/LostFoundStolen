@@ -37,12 +37,12 @@ In round 3 whoever chooses the highest number without someone else choosing it w
 
 
 ## ::Game Controls::
-###As Bandit Blink (default state)
+### As Bandit Blink (default state)
   Long press cycles between 6 team colors
   </br> 1x click cycle through secret number 1 to 6 then back to 1
   </br> 2x clicks to hide the secret number by lighting all 6 faces
   </br> 3x clicks to toggle from Secret Counter to Treasure
-###As Treasure
+### As Treasure
   </br> 1x click to reveal all secret numbers or set for round when no Bandit Blinks attached
   </br> 3x clck to toggle from Treasure to Secret Counter
 
