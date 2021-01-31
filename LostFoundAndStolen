@@ -1,0 +1,334 @@
+enum signalStates {INERT, GO, RESOLVE};  //00, 01, 10 in [A] [B]
+byte signalState = INERT;
+
+enum secretNumbers {ONE, TWO, THREE, FOUR, FIVE, SIX, WINNER, NONE}; //000, 001, 010, 100, 011, 101, 110, 111 in [C] [D] [E]
+//enum secretNumbers {1, 2, 3, 4, 5, 6, WINNER, NONE}; //000, 001, 010, 100, 011, 101, 110, 111 in [C] [D] [E]
+//if needed I could use last binary 2 spaces for roles
+//secretNumbers {ONE, TWO, THREE, FOUR, FIVE, SIX, TEAMCOUNTER, TREASURE};
+byte secretNumber[6] = {ONE, TWO, FOUR, ONE, THREE, ONE};
+//byte secretNumber[6] = {1, 1, 1, 1, 1, 1};
+byte secretNumberIterator = 0;
+//will be real # -1
+byte treasureSecretsReceived[6] = {0, 0, 0, 0, 0, 0}; // reads all faces to compare secret #s
+//setting to 6 means no winning face
+
+enum roles {TEAMCOUNTER, TREASURE};  //0, 1 in [F]
+byte role = TEAMCOUNTER;
+bool amTreasure = false;
+
+byte treasureDisplay[6] = {TREASURE, TREASURE, TREASURE, TREASURE, TREASURE, TREASURE};
+//TREASURE sparkle or TEAMCOLOR
+enum treasureTypes {FullTreasure, FiveToGive, ThreeToGive, OneToGive};
+byte treasureType = FullTreasure;
+
+byte clickDim = 255;
+bool hideSecret = false;
+
+Color teamColors[] = { RED, YELLOW, GREEN, BLUE, MAGENTA, WHITE };
+byte currentTeamColor = 0;
+Color displayColor[] = {CYAN, WHITE,CYAN, WHITE,CYAN, WHITE};
+
+byte winningFace = 6;
+byte troubleshootFace = 6;
+byte winningFaceArray[6] = {0, 0, 0, 0, 0, 0}; 
+bool isWinner = false;
+
+Timer checkWinnerGoTimer;
+#define CHECKING_DURATION 3000
+Timer sparkleTimer;
+#define SPARKLE_DURATION 500
+
+void setup(){
+  
+}
+
+void loop() {
+  switch (signalState) {
+    case INERT:
+      inertLoop();
+      break;
+    case GO:
+      goLoop();
+      break;
+    case RESOLVE:
+      resolveLoop();
+      break;
+  }
+
+    displayFaceColor();
+
+    FOREACH_FACE(f) {
+      byte sendData = (signalState << 4) + (secretNumber[f] << 1) + (role);
+      setValueSentOnFace(sendData, f);   
+    }
+}
+
+void inertLoop() {
+  if (buttonLongPressed()) {
+      //cycle team color
+      currentTeamColor = (currentTeamColor + 1) % 6;
+  }
+    
+  if ( buttonSingleClicked()) {
+      if(!hideSecret && !amTreasure) {
+        //increment clickCount 
+        secretNumberIterator = (secretNumberIterator + 1) % 6;
+    }
+
+      if(amTreasure) {
+        checkForWinner();
+      }
+  }
+  
+
+  if (buttonDoubleClicked()) {
+    hideSecret = !hideSecret;
+  }
+  if (buttonMultiClicked() && buttonClickCount() == 3) {
+    amTreasure = !amTreasure;
+    if(amTreasure){
+      role = TREASURE;    
+    }
+    else{
+      role = TEAMCOUNTER;
+    }
+    hideSecret = false;
+  }
+
+//both TREASURE and TEAMCOUNTER check for GO phase
+    FOREACH_FACE(f) {
+      if (!isValueReceivedOnFaceExpired(f)) {//we have a neighbor
+//        if (getRole(getLastValueReceivedOnFace(f)) == TREASURE && getSignalState(getLastValueReceivedOnFace(f)) == GO) {
+        if (getSignalState(getLastValueReceivedOnFace(f)) == GO) {
+          signalState = GO;
+          //reveal numbers
+          hideSecret = false;
+
+          if(amTreasure) {
+           checkForWinner();
+          }
+        }
+      }
+    }
+    //only TEAMCOUNTER sets secretNumber
+  if(!amTreasure){
+    FOREACH_FACE(f) {
+      switch (secretNumberIterator) {
+        case 0:
+          secretNumber[f] = ONE;
+          break;
+        case 1:
+          secretNumber[f] = TWO;
+          break;
+        case 2:
+          secretNumber[f] = THREE;
+          break;
+        case 3:
+          secretNumber[f] = FOUR;
+          break;
+        case 4:
+          secretNumber[f] = FIVE;
+          break;
+        case 5:
+          secretNumber[f] = SIX;
+          break;
+      }
+    }
+  }
+
+}
+
+void goLoop() {
+    signalState = RESOLVE;//I default to this at the start of the loop. Only if I see a problem does this not happen
+
+
+      
+  //look for neighbors who have not heard the GO news
+  FOREACH_FACE(f) {
+    if (!isValueReceivedOnFaceExpired(f)) {//a neighbor!
+      if (getSignalState(getLastValueReceivedOnFace(f)) == INERT) {//This neighbor doesn't know it's GO time. Stay in GO
+        signalState = GO;
+
+//        if(getSecretNumber(getLastValueReceivedOnFace(f)) == WINNER){
+//          isWinner = true;
+//        }
+      }
+    }
+  }
+}
+
+void resolveLoop() {
+    signalState = INERT;//I default to this at the start of the loop. Only if I see a problem does this not happen
+
+  //look for neighbors who have not moved to RESOLVE
+  FOREACH_FACE(f) {
+    if (!isValueReceivedOnFaceExpired(f)) {//a neighbor!
+      if (getSignalState(getLastValueReceivedOnFace(f)) == GO) {//This neighbor isn't in RESOLVE. Stay in RESOLVE
+        signalState = RESOLVE;
+      }
+    }
+  }
+}
+
+void displayFaceColor() {
+  //default OFF to stop color lingering
+  setColor(OFF);
+    
+  switch (signalState) {
+    case INERT:
+      FOREACH_FACE(f) {
+        if (!amTreasure && f <= secretNumberIterator) {
+          setColorOnFace(dim(teamColors[currentTeamColor],clickDim),f);
+        }
+      }
+      if (!amTreasure && hideSecret) {
+        //make all faces your team color
+        setColor(dim(teamColors[currentTeamColor],clickDim));
+      }
+      if ( amTreasure ) {
+        FOREACH_FACE(f) {
+          setColorOnFace(displayColor[f],f);
+        }
+      }
+      break;
+    case GO:
+      setColor(MAGENTA);
+      break;
+    case RESOLVE:
+      setColor(WHITE);
+      break;
+  }
+}
+
+void checkForWinner(){
+  FOREACH_FACE(f) {
+      treasureSecretsReceived[f] = 0;
+    if (!isValueReceivedOnFaceExpired(f) ){//a neighbor
+  
+//      if(getRole(getLastValueReceivedOnFace(f)) == TEAMCOUNTER) {  //a Counter neighbor!
+         byte newNumberText = getSecretNumber(getLastValueReceivedOnFace(f));
+          switch (newNumberText) {
+            case ONE:
+              treasureSecretsReceived[f] = 1;
+              break;
+            case TWO:
+              treasureSecretsReceived[f] = 2;
+              break;
+            case THREE:
+              treasureSecretsReceived[f] = 3;
+              break;
+            case FOUR:
+              treasureSecretsReceived[f] = 4;
+              break;
+            case FIVE:
+              treasureSecretsReceived[f] = 5;
+              break;
+            case SIX:
+              treasureSecretsReceived[f] = 6;
+              break;
+          }
+       }
+//    }
+  }
+//
+        displayColor[0] = CYAN;
+        displayColor[1] = WHITE;
+        displayColor[2] = CYAN;
+        displayColor[3] = WHITE;
+        displayColor[4] = CYAN;
+        displayColor[5] = WHITE;
+
+  if(treasureSecretsReceived[0] > treasureSecretsReceived[1] && 
+  treasureSecretsReceived[0] > treasureSecretsReceived[2] && 
+  treasureSecretsReceived[0] > treasureSecretsReceived[3] && 
+  treasureSecretsReceived[0] > treasureSecretsReceived[4] && 
+  treasureSecretsReceived[0] > treasureSecretsReceived[5]) {
+    displayColor[0] = WHITE;
+    displayColor[1] = YELLOW;
+    displayColor[2] = OFF;
+    displayColor[3] = OFF;
+    displayColor[4] = OFF;
+    displayColor[5] = YELLOW;
+//    secretNumber[winningFace] = WINNER;
+  }
+  else if(treasureSecretsReceived[1] > treasureSecretsReceived[0] && 
+  treasureSecretsReceived[1] > treasureSecretsReceived[2] && 
+  treasureSecretsReceived[1] > treasureSecretsReceived[3] && 
+  treasureSecretsReceived[1] > treasureSecretsReceived[4] && 
+  treasureSecretsReceived[1] > treasureSecretsReceived[5]) {
+    displayColor[0] = YELLOW;
+    displayColor[1] = WHITE;
+    displayColor[2] = YELLOW;
+    displayColor[3] = OFF;
+    displayColor[4] = OFF;
+    displayColor[5] = OFF;
+//    secretNumber[winningFace] = WINNER;
+  }
+  else if(treasureSecretsReceived[2] > treasureSecretsReceived[0] && 
+  treasureSecretsReceived[2] > treasureSecretsReceived[1] && 
+  treasureSecretsReceived[2] > treasureSecretsReceived[3] && 
+  treasureSecretsReceived[2] > treasureSecretsReceived[4] && 
+  treasureSecretsReceived[2] > treasureSecretsReceived[5]) {
+    displayColor[0] = OFF;
+    displayColor[1] = YELLOW;
+    displayColor[2] = WHITE;
+    displayColor[3] = YELLOW;
+    displayColor[4] = OFF;
+    displayColor[5] = OFF;
+//    secretNumber[winningFace] = WINNER;
+  }
+  else if(treasureSecretsReceived[3] > treasureSecretsReceived[0] && 
+  treasureSecretsReceived[3] > treasureSecretsReceived[1] && 
+  treasureSecretsReceived[3] > treasureSecretsReceived[2] && 
+  treasureSecretsReceived[3] > treasureSecretsReceived[4] && 
+  treasureSecretsReceived[3] > treasureSecretsReceived[5]) {
+    displayColor[0] = OFF;
+    displayColor[1] = OFF;
+    displayColor[2] = YELLOW;
+    displayColor[3] = WHITE;
+    displayColor[4] = YELLOW;
+    displayColor[5] = OFF;
+//    secretNumber[winningFace] = WINNER;
+  }
+  else if(treasureSecretsReceived[4] > treasureSecretsReceived[0] && 
+  treasureSecretsReceived[4] > treasureSecretsReceived[1] && 
+  treasureSecretsReceived[4] > treasureSecretsReceived[2] && 
+  treasureSecretsReceived[4] > treasureSecretsReceived[3] && 
+  treasureSecretsReceived[4] > treasureSecretsReceived[5]) {
+    displayColor[0] = OFF;
+    displayColor[1] = OFF;
+    displayColor[2] = OFF;
+    displayColor[3] = YELLOW;
+    displayColor[4] = WHITE;
+    displayColor[5] = YELLOW;
+//    secretNumber[winningFace] = WINNER;
+  }
+  else if(treasureSecretsReceived[5] > treasureSecretsReceived[0] && 
+  treasureSecretsReceived[5] > treasureSecretsReceived[1] && 
+  treasureSecretsReceived[5] > treasureSecretsReceived[2] && 
+  treasureSecretsReceived[5] > treasureSecretsReceived[3] && 
+  treasureSecretsReceived[5] > treasureSecretsReceived[4]) {
+    displayColor[0] = YELLOW;
+    displayColor[1] = OFF;
+    displayColor[2] = OFF;
+    displayColor[3] = OFF;
+    displayColor[4] = YELLOW;
+    displayColor[5] = WHITE;
+//    secretNumber[winningFace] = WINNER;          
+  }
+  signalState = GO;
+}
+
+
+
+byte getSignalState(byte data) {
+    return ((data >> 4) & 3);//returns bits A & B
+}
+
+byte getSecretNumber(byte data) {
+    return ((data >> 1) & 7);//returns bits C , D & E
+}
+
+byte getRole(byte data) {
+    return (data & 1);//returns bit F
+}
