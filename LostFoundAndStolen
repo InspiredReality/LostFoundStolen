@@ -7,20 +7,26 @@ TOGGLERAINBOW, RIPPLE, NULLCOMM}; //000, 001, 010, 100, 011, 101, 110, 111 in [C
 //byte blinkComms[16] = {ONE, TWO, FOUR, ONE, THREE, ONE};
 //array to loop through for each face when sending comms
 byte blinkComms[6];
-
+bool twoAvail = true;
+bool fourAvail = true;
+bool sixAvail = true;
+byte numberToSend = 0;
 bool hideSecret = false;
-byte secretNumberIterator = 0;
+byte secretNumberIterator = 1;
 //will be real # -1
 byte treasureSecretsReceived[6] = {0, 0, 0, 0, 0, 0}; // reads all faces to compare secret #s
 //setting to 6 means no winning face
 
 bool amTreasure = false;
-bool amTeamTreasure = false;
+bool amTeamTreasure1 = false;
+bool amTeamTreasure2 = false;
+bool amTeamTreasure3 = false;
 bool isFirstTeamTreasure = true;
-Timer firstTeamTreasureTimer;
+bool waitingAfterLoss = false;
+//Timer firstTeamTreasureTimer;
 //TREASURE sparkle or TEAMCOLOR
-enum treasureTypes {FullTreasure, OneToGive, NoneToGive};
-byte treasureType = FullTreasure;
+//enum treasureTypes {FullTreasure, OneToGive, NoneToGive};
+//byte treasureType = FullTreasure;
 
 byte clickDim = 255;
 
@@ -30,10 +36,7 @@ Color displayColor[] = {OFF,OFF,OFF,OFF,OFF,OFF};
 byte teamColorTreasure;
 
 byte winningFace = 6;
-byte troubleshootFace = 6;
 byte winningFaceArray[6] = {0, 0, 0, 0, 0, 0}; 
-bool isWinner = false;
-bool stopRefresh = false;
 
 Timer checkWinnerTimer;
 #define CHECKING_DURATION 3000
@@ -72,143 +75,226 @@ void loop() {
 }
 
 void inertLoop() {
-  skipSendingSecretNumber = false;
-  
-  if (buttonLongPressed()) {
-      //cycle team color
-      currentTeamColor = (currentTeamColor + 1) % 6;
-      //cycle all team colors for cluster
+      //BANDIT
+  if(!amTreasure && !amTeamTreasure1 && !amTeamTreasure2 && !amTeamTreasure3){
+    skipSendingSecretNumber = false;
+    if(waitingAfterLoss && checkWinnerTimer.isExpired()){
+      waitingAfterLoss = false;
+      secretNumberIterator = 0;
+    }
+    
+    if (buttonLongPressed()) {
+        //cycle team color
+        currentTeamColor = (currentTeamColor + 1) % 6;
+        //cycle all team colors for cluster
+        FOREACH_FACE(f) {
+          blinkComms[f] = TOGGLETEAM;
+        }
+        signalState = GO;
+        skipSendingSecretNumber = true;
+    }
+      
+    if ( buttonSingleClicked()) {
+      if(twoAvail && fourAvail && sixAvail) {
+        //increment clickCount 
+        secretNumberIterator = (secretNumberIterator + 2) % 6;
+      }
+      else if(fourAvail && twoAvail){
+        switch (secretNumberIterator) {
+          case 0:
+  //          blinkComms[f] = TWO;
+            secretNumberIterator = 1;
+            break;
+          case 1:
+  //          blinkComms[f] = FOUR;
+            secretNumberIterator = 3;
+            break;
+          case 3:
+  //          blinkComms[f] = TWO;
+            secretNumberIterator = 1;
+            break;
+        }
+      }
+      else if(fourAvail && sixAvail){
+        switch (secretNumberIterator) {
+          case 0:
+            secretNumberIterator = 3;
+            break;
+          case 3:
+            secretNumberIterator = 5;
+            break;
+          case 5:
+            secretNumberIterator = 3;
+            break;
+        }
+      }
+      else if(twoAvail && sixAvail){
+        switch (secretNumberIterator) {
+          case 0:
+            secretNumberIterator = 1;
+            break;
+          case 1:
+            secretNumberIterator = 5;
+            break;
+          case 5:
+            secretNumberIterator = 1;
+            break;
+        }
+      }
+      else if(twoAvail){
+        if(secretNumberIterator == 0) {
+            secretNumberIterator = 1;
+        }
+      }
+      else if(fourAvail){
+        if(secretNumberIterator == 0) {
+            secretNumberIterator = 3;
+        }
+      }
+      else if(sixAvail){
+        if(secretNumberIterator == 0) {
+            secretNumberIterator = 5;
+        }
+      }      
+    }
+
+    if (buttonDoubleClicked()) {
+      hideSecret = !hideSecret;
       FOREACH_FACE(f) {
-        blinkComms[f] = TOGGLETEAM;
+        blinkComms[f] = TOGGLEHIDESECRET;
       }
       signalState = GO;
-  }
+      skipSendingSecretNumber = true;
+    }
     
-  if ( buttonSingleClicked()) {
-      if(!hideSecret && !amTreasure) {
-        //increment clickCount 
-        secretNumberIterator = (secretNumberIterator + 1) % 6;
+    if (buttonMultiClicked() && buttonClickCount() == 3) {
+      amTreasure = true;
+      amTeamTreasure1 = false;
+      amTeamTreasure3 = false;
+      isFirstTeamTreasure = false;
     }
 
-      if(amTreasure) {
-        checkForWinner();
-      }
-  }
-  
 
-  if (buttonDoubleClicked()) {
-    hideSecret = !hideSecret;
-    FOREACH_FACE(f) {
-      blinkComms[f] = TOGGLEHIDESECRET;
-    }
-    signalState = GO;
-  }
-  
-  if (buttonMultiClicked() && buttonClickCount() == 3) {
-    amTreasure = !amTreasure;
-    if(amTreasure){
-      amTeamTreasure = false;
-    }
-    else{
-    }
-    hideSecret = false;
-  }
-
-//both TREASURE and TEAMCOUNTER check for GO phase
     FOREACH_FACE(f) {
       if (!isValueReceivedOnFaceExpired(f)) {//we have a neighbor
         if (getSignalState(getLastValueReceivedOnFace(f)) == GO) {
           signalState = GO;
-//          resetTreasure();
-       
-       //Treasure Actions
-          if(amTreasure) {
-             if(getBlinkComms(getLastValueReceivedOnFace(f)) == ONE && getBlinkComms(getLastValueReceivedOnFace(f)) == TWO && 
-             getBlinkComms(getLastValueReceivedOnFace(f)) == THREE && getBlinkComms(getLastValueReceivedOnFace(f)) == FOUR &&
-             getBlinkComms(getLastValueReceivedOnFace(f)) == FIVE && getBlinkComms(getLastValueReceivedOnFace(f)) == SIX){
+
+          if(getBlinkComms(getLastValueReceivedOnFace(f)) == TOGGLEHIDESECRET ){
+            hideSecret = !hideSecret;
+            skipSendingSecretNumber = true;
+            FOREACH_FACE(f) {
+              blinkComms[f] = TOGGLEHIDESECRET;
             }
-            checkForWinner();
-            //if you are isFirstTeamTreasure you aren't anymore
-            isFirstTeamTreasure = false;
+          }
+          if(getBlinkComms(getLastValueReceivedOnFace(f)) == TOGGLETEAM ){
+            currentTeamColor = (currentTeamColor + 1) % 6;
+            skipSendingSecretNumber = true;
+            FOREACH_FACE(f) {
+              blinkComms[f] = TOGGLETEAM;
+            }
           }
 
-       //Bandit actions
-          else{
-            //if neighbor NOT Bandit
-             if(getBlinkComms(getLastValueReceivedOnFace(f)) != ONE && getBlinkComms(getLastValueReceivedOnFace(f)) != TWO && 
-             getBlinkComms(getLastValueReceivedOnFace(f)) != THREE && getBlinkComms(getLastValueReceivedOnFace(f)) != FOUR &&
-             getBlinkComms(getLastValueReceivedOnFace(f)) != FIVE && getBlinkComms(getLastValueReceivedOnFace(f)) != SIX &&
-             getBlinkComms(getLastValueReceivedOnFace(f)) != TOGGLEHIDESECRET && getBlinkComms(getLastValueReceivedOnFace(f)) != TOGGLETEAM){
-              //reveal numbers if not amTreasure (so Bandit) and neighbor is not Bandit
-              hideSecret = false;
-             }
-            //if neighbor is Bandit
-            else{
-              if(getBlinkComms(getLastValueReceivedOnFace(f)) == TOGGLEHIDESECRET ){
-                hideSecret = !hideSecret;
-                skipSendingSecretNumber = true;
-              }
-              if(getBlinkComms(getLastValueReceivedOnFace(f)) == TOGGLETEAM ){
-                currentTeamColor = (currentTeamColor + 1) % 6;
-                skipSendingSecretNumber = true;
-           
-              }
-            }
+          if(getBlinkComms(getLastValueReceivedOnFace(f)) == WINTHREE){
+            checkWinnerTimer.set(CHECKING_DURATION);
+            amTeamTreasure3 = true;
+            teamColorTreasure = f;
+          }
+          if(getBlinkComms(getLastValueReceivedOnFace(f)) == WINONE){
+            checkWinnerTimer.set(CHECKING_DURATION);
+            amTeamTreasure1 = true;
+            teamColorTreasure = f;
+          }
 
-            //if winner then become TreasureBandit
-            if(getBlinkComms(getLastValueReceivedOnFace(f)) == WINTHREE || getBlinkComms(getLastValueReceivedOnFace(f)) == WINONE){
-              amTreasure = true;
-              amTeamTreasure = true;
-              resetTreasure();
-              setDisplayColor(WHITE, WHITE, WHITE, WHITE, WHITE, WHITE);
-              teamColorTreasure = f;
-              displayColor[f] = teamColors[currentTeamColor];
-              checkWinnerTimer.set(3000);
+          if(getBlinkComms(getLastValueReceivedOnFace(f)) == NOWINNER){
+            switch (blinkComms[0]) {
+              case TWO:
+                twoAvail = false;
+                break;
+              case FOUR:
+                fourAvail = false;
+                break;
+              case SIX:
+                sixAvail = false;
+                break;
             }
+            waitingAfterLoss = true;
+            checkWinnerTimer.set(CHECKING_DURATION);
+          }
+                    
+          
+          }
+
+        }
+      }
+
+
+    if(!skipSendingSecretNumber){
+      FOREACH_FACE(f) {
+        switch (secretNumberIterator) {
+          case 0:
+            blinkComms[f] = ONE;
+            break;
+          case 1:
+            blinkComms[f] = TWO;
+            break;
+    //      case 2:
+    //        blinkComms[f] = THREE;
+    //        break;
+          case 3:
+            blinkComms[f] = FOUR;
+            break;
+    //      case 4:
+    //        blinkComms[f] = FIVE;
+    //        break;
+          case 5:
+            blinkComms[f] = SIX;
+            break;
+        }
+      }
+    }
+  }
+
+  //TREASURE
+  else {
+    if(isFirstTeamTreasure && checkWinnerTimer.isExpired()){
+      isFirstTeamTreasure = false;
+    }
+        
+    if ( buttonSingleClicked()) {
+      checkWinnerTimer.set(CHECKING_DURATION);
+      checkForWinner();
+    }
+    
+    if (buttonMultiClicked() && buttonClickCount() == 3) {
+      amTreasure = false;
+      amTeamTreasure1 = false;
+      amTeamTreasure3 = false;
+      hideSecret = false;
+      twoAvail = true;
+      fourAvail = true;
+      sixAvail = true;
+      isFirstTeamTreasure = true;
+    }
+  
+//check for GO phase
+    FOREACH_FACE(f) {
+      if (!isValueReceivedOnFaceExpired(f)) {//we have a neighbor
+        if (getSignalState(getLastValueReceivedOnFace(f)) == GO) {
+          signalState = GO;
+  
+          if(getBlinkComms(getLastValueReceivedOnFace(f)) == NOWINNER ){
+            checkWinnerTimer.set(CHECKING_DURATION);
+            checkForWinner();
           }
         }
       }
     }
-   
-    
-    //only TEAMCOUNTER sets blinkComms
-  if(!skipSendingSecretNumber && !amTreasure){
-//  if(!amTreasure){
-    FOREACH_FACE(f) {
-      switch (secretNumberIterator) {
-        case 0:
-          blinkComms[f] = ONE;
-          break;
-        case 1:
-          blinkComms[f] = TWO;
-          break;
-        case 2:
-          blinkComms[f] = THREE;
-          break;
-        case 3:
-          blinkComms[f] = FOUR;
-          break;
-        case 4:
-          blinkComms[f] = FIVE;
-          break;
-        case 5:
-          blinkComms[f] = SIX;
-          break;
-      }
-    }
   }
-
 }
 
 void goLoop() {
-    signalState = RESOLVE;//I default to this at the start of the loop. Only if I see a problem does this not happen
-
-  if(blinkComms[0] == TOGGLETEAM){
-    FOREACH_FACE(f) {
-      blinkComms[f] = NULLCOMM;
-    }
-  }
-    
+    signalState = RESOLVE;//I default to this at the start of the loop. Only if I see a problem does this not happen  
 
   //look for neighbors who have not heard the GO news
   FOREACH_FACE(f) {
@@ -236,13 +322,12 @@ void resolveLoop() {
 
 
 void checkForWinner(){
-  checkWinnerTimer.set(3000);
-  
+//  checkWinnerTimer.set(3000);
+
+  //get numbers sent
   FOREACH_FACE(f) {
-      treasureSecretsReceived[f] = 0;
+    treasureSecretsReceived[f] = 0;
     if (!isValueReceivedOnFaceExpired(f) ){//a neighbor
-  
-//      if(getRole(getLastValueReceivedOnFace(f)) == TEAMCOUNTER) {  //a Counter neighbor!
          byte newNumberText = getBlinkComms(getLastValueReceivedOnFace(f));
           switch (newNumberText) {
             case ONE:
@@ -264,22 +349,24 @@ void checkForWinner(){
               treasureSecretsReceived[f] = 6;
               break;
           }
-          //if NOT Bandit
-           if(getBlinkComms(getLastValueReceivedOnFace(f)) != ONE && getBlinkComms(getLastValueReceivedOnFace(f)) != TWO && 
-           getBlinkComms(getLastValueReceivedOnFace(f)) != THREE && getBlinkComms(getLastValueReceivedOnFace(f)) != FOUR &&
-           getBlinkComms(getLastValueReceivedOnFace(f)) != FIVE && getBlinkComms(getLastValueReceivedOnFace(f)) != SIX){
-              treasureSecretsReceived[f] = 0;
-           }
+//          //if NOT Bandit
+//           if(getBlinkComms(getLastValueReceivedOnFace(f)) != ONE && getBlinkComms(getLastValueReceivedOnFace(f)) != TWO && 
+//           getBlinkComms(getLastValueReceivedOnFace(f)) != THREE && getBlinkComms(getLastValueReceivedOnFace(f)) != FOUR &&
+//           getBlinkComms(getLastValueReceivedOnFace(f)) != FIVE && getBlinkComms(getLastValueReceivedOnFace(f)) != SIX){
+//              treasureSecretsReceived[f] = 0;
+//           }
        }
   }
+//
+//        displayColor[0] = CYAN;
+//        displayColor[1] = WHITE;
+//        displayColor[2] = CYAN;
+//        displayColor[3] = WHITE;
+//        displayColor[4] = CYAN;
+//        displayColor[5] = WHITE;
 
-        displayColor[0] = CYAN;
-        displayColor[1] = WHITE;
-        displayColor[2] = CYAN;
-        displayColor[3] = WHITE;
-        displayColor[4] = CYAN;
-        displayColor[5] = WHITE;
 
+//Calculate if Winner
   if(treasureSecretsReceived[0] > treasureSecretsReceived[1] && 
   treasureSecretsReceived[0] > treasureSecretsReceived[2] && 
   treasureSecretsReceived[0] > treasureSecretsReceived[3] && 
@@ -289,8 +376,10 @@ void checkForWinner(){
     if(amTreasure){
       blinkComms[0] = WINTHREE;
     }
-    else if(amTeamTreasure){
+    else if(amTeamTreasure3){
       blinkComms[0] = WINONE;
+      amTeamTreasure3 = false;
+      amTeamTreasure2 = true;
     }
   }
   else if(treasureSecretsReceived[1] > treasureSecretsReceived[0] && 
@@ -298,17 +387,20 @@ void checkForWinner(){
   treasureSecretsReceived[1] > treasureSecretsReceived[3] && 
   treasureSecretsReceived[1] > treasureSecretsReceived[4] && 
   treasureSecretsReceived[1] > treasureSecretsReceived[5]) {
-    displayColor[0] = YELLOW;
-    displayColor[1] = WHITE;
-    displayColor[2] = YELLOW;
-    displayColor[3] = OFF;
-    displayColor[4] = OFF;
-    displayColor[5] = OFF;
+    setDisplayColor(YELLOW, WHITE, YELLOW, OFF, OFF, OFF);
+//    displayColor[0] = YELLOW;
+//    displayColor[1] = WHITE;
+//    displayColor[2] = YELLOW;
+//    displayColor[3] = OFF;
+//    displayColor[4] = OFF;
+//    displayColor[5] = OFF;
     if(amTreasure){
-      blinkComms[1] = WINTHREE;
+      blinkComms[0] = WINTHREE;
     }
-    else if(amTeamTreasure){
-      blinkComms[1] = WINONE;
+    else if(amTeamTreasure3){
+      blinkComms[0] = WINONE;
+      amTeamTreasure3 = false;
+      amTeamTreasure2 = true;
     }
   }
   else if(treasureSecretsReceived[2] > treasureSecretsReceived[0] && 
@@ -316,17 +408,20 @@ void checkForWinner(){
   treasureSecretsReceived[2] > treasureSecretsReceived[3] && 
   treasureSecretsReceived[2] > treasureSecretsReceived[4] && 
   treasureSecretsReceived[2] > treasureSecretsReceived[5]) {
-    displayColor[0] = OFF;
-    displayColor[1] = YELLOW;
-    displayColor[2] = WHITE;
-    displayColor[3] = YELLOW;
-    displayColor[4] = OFF;
-    displayColor[5] = OFF;
+    setDisplayColor(OFF, YELLOW, WHITE, YELLOW, OFF, OFF);
+//    displayColor[0] = OFF;
+//    displayColor[1] = YELLOW;
+//    displayColor[2] = WHITE;
+//    displayColor[3] = YELLOW;
+//    displayColor[4] = OFF;
+//    displayColor[5] = OFF;
     if(amTreasure){
-      blinkComms[2] = WINTHREE;
+      blinkComms[0] = WINTHREE;
     }
-    else if(amTeamTreasure){
-      blinkComms[2] = WINONE;
+    else if(amTeamTreasure3){
+      blinkComms[0] = WINONE;
+      amTeamTreasure3 = false;
+      amTeamTreasure2 = true;
     }
   }
   else if(treasureSecretsReceived[3] > treasureSecretsReceived[0] && 
@@ -334,17 +429,20 @@ void checkForWinner(){
   treasureSecretsReceived[3] > treasureSecretsReceived[2] && 
   treasureSecretsReceived[3] > treasureSecretsReceived[4] && 
   treasureSecretsReceived[3] > treasureSecretsReceived[5]) {
-    displayColor[0] = OFF;
-    displayColor[1] = OFF;
-    displayColor[2] = YELLOW;
-    displayColor[3] = WHITE;
-    displayColor[4] = YELLOW;
-    displayColor[5] = OFF;
+    setDisplayColor(OFF, OFF, YELLOW, WHITE, YELLOW, OFF);
+//    displayColor[0] = OFF;
+//    displayColor[1] = OFF;
+//    displayColor[2] = YELLOW;
+//    displayColor[3] = WHITE;
+//    displayColor[4] = YELLOW;
+//    displayColor[5] = OFF;
     if(amTreasure){
-      blinkComms[3] = WINTHREE;
+      blinkComms[0] = WINTHREE;
     }
-    else if(amTeamTreasure){
-      blinkComms[3] = WINONE;
+    else if(amTeamTreasure3){
+      blinkComms[0] = WINONE;
+      amTeamTreasure3 = false;
+      amTeamTreasure2 = true;
     }
   }
   else if(treasureSecretsReceived[4] > treasureSecretsReceived[0] && 
@@ -352,17 +450,20 @@ void checkForWinner(){
   treasureSecretsReceived[4] > treasureSecretsReceived[2] && 
   treasureSecretsReceived[4] > treasureSecretsReceived[3] && 
   treasureSecretsReceived[4] > treasureSecretsReceived[5]) {
-    displayColor[0] = OFF;
-    displayColor[1] = OFF;
-    displayColor[2] = OFF;
-    displayColor[3] = YELLOW;
-    displayColor[4] = WHITE;
-    displayColor[5] = YELLOW;
+    setDisplayColor(OFF, OFF, OFF, YELLOW, WHITE, YELLOW);
+//    displayColor[0] = OFF;
+//    displayColor[1] = OFF;
+//    displayColor[2] = OFF;
+//    displayColor[3] = YELLOW;
+//    displayColor[4] = WHITE;
+//    displayColor[5] = YELLOW;
     if(amTreasure){
-      blinkComms[4] = WINTHREE;
+      blinkComms[0] = WINTHREE;
     }
-    else if(amTeamTreasure){
-      blinkComms[4] = WINONE;
+    else if(amTeamTreasure3){
+      blinkComms[0] = WINONE;
+      amTeamTreasure3 = false;
+      amTeamTreasure2 = true;
     }
   }
   else if(treasureSecretsReceived[5] > treasureSecretsReceived[0] && 
@@ -370,23 +471,23 @@ void checkForWinner(){
   treasureSecretsReceived[5] > treasureSecretsReceived[2] && 
   treasureSecretsReceived[5] > treasureSecretsReceived[3] && 
   treasureSecretsReceived[5] > treasureSecretsReceived[4]) {
-    displayColor[0] = YELLOW;
-    displayColor[1] = OFF;
-    displayColor[2] = OFF;
-    displayColor[3] = OFF;
-    displayColor[4] = YELLOW;
-    displayColor[5] = WHITE;        
+    setDisplayColor(YELLOW, OFF, OFF, OFF, YELLOW, WHITE);
+//    displayColor[0] = YELLOW;
+//    displayColor[1] = OFF;
+//    displayColor[2] = OFF;
+//    displayColor[3] = OFF;
+//    displayColor[4] = YELLOW;
+//    displayColor[5] = WHITE;        
     if(amTreasure){
-      blinkComms[5] = WINTHREE;
+      blinkComms[0] = WINTHREE;
     }
-    else if(amTeamTreasure){
-      blinkComms[5] = WINONE;
+    else if(amTeamTreasure3){
+      blinkComms[0] = WINONE;
+      amTeamTreasure3 = false;
+      amTeamTreasure2 = true;
     }
   }
-
-  
   signalState = GO;
-  stopRefresh = false;
 }
 
 
@@ -426,16 +527,16 @@ byte fullSparkle(Color white, Color blue){
     displayColor[whiteShine3] = white;
 }
 
-void resetTreasure(){
-  blinkComms[0] = NULLCOMM;
-  blinkComms[1] = NULLCOMM;
-  blinkComms[2] = NULLCOMM; 
-  blinkComms[3] = NULLCOMM;
-  blinkComms[4] = NULLCOMM; 
-  blinkComms[5] = NULLCOMM; 
-//  needToSendWinSignal = false;
-//  winningFace = 7;
-}
+//void resetTreasure(){
+//  blinkComms[0] = NULLCOMM;
+//  blinkComms[1] = NULLCOMM;
+//  blinkComms[2] = NULLCOMM; 
+//  blinkComms[3] = NULLCOMM;
+//  blinkComms[4] = NULLCOMM; 
+//  blinkComms[5] = NULLCOMM; 
+////  needToSendWinSignal = false;
+////  winningFace = 7;
+//}
 
 
 
@@ -446,65 +547,64 @@ void displayFaceColor() {
   switch (signalState) {
     case INERT:
       FOREACH_FACE(f) {
-        if (!amTreasure && f <= secretNumberIterator){
+        if (!amTreasure && !amTeamTreasure1 && !amTeamTreasure2 ^=&& !amTeamTreasure3 && f <= secretNumberIterator){
           setColorOnFace(dim(teamColors[currentTeamColor],clickDim),f);
         }
-        else if ( amTreasure ) {
-          if( sparkleTimer.isExpired() ){
-            sparkleTimer.set(10);
-            fullSparkle(WHITE, CYAN);
+
+        //checking winner or delaying winner reveal bc checkWinnerTimer is running
+        if(!checkWinnerTimer.isExpired()){
+          if(isFirstTeamTreasure){
+            //running timer and its my first time then act like a Bandit
+            setColorOnFace(dim(teamColors[currentTeamColor],clickDim),f);
           }
-//          if(amTeamTreasure) {
-//            setColorOnFace(teamColors[currentTeamColor],teamColorTreasure);  
-//          }
-
-          setColorOnFace(displayColor[f],f);
-         
-        }
-               
-      }
-
-      //checking winner or delaying winner reveal
-      if(!checkWinnerTimer.isExpired()){
-        if(amTreasure && !amTeamTreasure){
-          setColorOnFace(dim(WHITE,150),simpleIterateFace % 6);
-          setColorOnFace(WHITE,(simpleIterateFace+1) % 6);
-          setColorOnFace(dim(WHITE,150),(simpleIterateFace+2) % 6);
-          setColorOnFace(OFF,(simpleIterateFace+3) % 6);
-          setColorOnFace(OFF,(simpleIterateFace+4) % 6);
-          setColorOnFace(OFF,(simpleIterateFace+5) % 6);
-          if( simpleIterateFaceTimer.isExpired() ){
-            simpleIterateFaceTimer.set(500);
-            simpleIterateFace ++;
-          }
-        }
-
-        if(amTeamTreasure && isFirstTeamTreasure){
-//          isFirstTeamTreasure = false;
-          FOREACH_FACE(f) {
-            setColorOnFace(OFF, f);
-            if(f <= secretNumberIterator){
-              setColorOnFace(dim(teamColors[currentTeamColor],clickDim),f);
+          //running timer and not first time then circle spin ani
+          if(amTreasure || amTeamTreasure1 || amTeamTreasure3){
+            setColorOnFace(dim(WHITE,150),simpleIterateFace % 6);
+            setColorOnFace(WHITE,(simpleIterateFace+1) % 6);
+            setColorOnFace(dim(WHITE,150),(simpleIterateFace+2) % 6);
+            setColorOnFace(OFF,(simpleIterateFace+3) % 6);
+            setColorOnFace(OFF,(simpleIterateFace+4) % 6);
+            setColorOnFace(OFF,(simpleIterateFace+5) % 6);
+            if( simpleIterateFaceTimer.isExpired() ){
+              simpleIterateFaceTimer.set(500);
+              simpleIterateFace ++;
             }
           }
         }
-      }
-      
-      if(amTeamTreasure && checkWinnerTimer.isExpired()){
-        FOREACH_FACE(f) {
-          setColorOnFace(teamColors[currentTeamColor],teamColorTreasure % 6);
-          setColorOnFace(teamColors[currentTeamColor],(teamColorTreasure + 1) % 6);
-          setColorOnFace(teamColors[currentTeamColor],(teamColorTreasure + 5) % 6);
-//          setColorOnFace(teamColors[currentTeamColor],teamColorTreasure % 6);
-//          setColorOnFace(teamColors[currentTeamColor],teamColorTreasure % 6);
-//          setColorOnFace(teamColors[currentTeamColor],teamColorTreasure % 6);
-                    
-//          displayColor[f] = teamColors[currentTeamColor];
+        //checking winner timer is not running set baseline sparkle
+        else if(!checkWinnerTimer.isExpired()){
+          if ( amTreasure || amTeamTreasure1 || amTeamTreasure2 || amTeamTreasure3 ) {
+            if( sparkleTimer.isExpired() ){
+              sparkleTimer.set(10);
+              fullSparkle(WHITE, CYAN);
+            }
+            setColorOnFace(displayColor[f],f);
+          }
+          //checking timer not running and Team Treasure so cover up sparkle with teamColor 
+          if ( amTeamTreasure1 || amTeamTreasure2 || amTeamTreasure3 )
+          {
+            setColorOnFace(teamColors[currentTeamColor],teamColorTreasure % 6);
+            setColorOnFace(teamColors[currentTeamColor],(teamColorTreasure + 1) % 6);
+            setColorOnFace(teamColors[currentTeamColor],(teamColorTreasure + 5) % 6);
+          }
+          //checking timer not running and Team Treasure so cover up sparkle with OFFs
+//          if(amTeamTreasure#){            
+//            setColorOnFace(OFF,(teamColorTreasure + 2) % 6);
+//            setColorOnFace(teamColors[currentTeamColor],(teamColorTreasure + 1) % 6);
+//            setColorOnFace(teamColors[currentTeamColor],(teamColorTreasure + 5) % 6);
+//            
+//          }
+          if(amTeamTreasure2){
+            setColorOnFace(OFF,(teamColorTreasure + 4) % 6);
+          }
+          if(amTeamTreasure1){
+            setColorOnFace(OFF,(teamColorTreasure + 2) % 6);
+            setColorOnFace(OFF,(teamColorTreasure + 3) % 6);            
+          }
         }
       }
       
-      if (!amTreasure && hideSecret) {
-        //make all faces your team color
+      if (!amTreasure && !amTeamTreasure1 && !amTeamTreasure2 && !amTeamTreasure3 && hideSecret) {
         setColor(dim(teamColors[currentTeamColor],clickDim));
         setColorOnFace(OFF,simpleIterateFace % 6);
         setColorOnFace(OFF,(simpleIterateFace+3) % 6);
@@ -513,9 +613,6 @@ void displayFaceColor() {
           simpleIterateFace ++;
         }
       }
-
-
-      
       break;
     case GO:
       setColor(MAGENTA);
