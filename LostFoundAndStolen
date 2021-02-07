@@ -1,7 +1,7 @@
 enum signalStates {INERT, GO, RESOLVE};  //00, 01, 10 in [A] [B]
 byte signalState = INERT;
 
-enum blinkCommss {ONE, TWO, FOUR, SIX, WINTHREE, WINTWO, WINONE, NOWINNER, TOGGLEHIDESECRET, TOGGLETEAM, CHECKWINNER, SPINNING,
+enum blinkCommss {ONE, TWO, FOUR, SIX, WINTHREE, WINTWO, WINONE, NOWINNER, TOGGLEHIDESECRET, TOGGLETEAM, CHECKWINNER, RESETALL,
 TOGGLERAINBOW, RIPPLE, NULLCOMM}; //000, 001, 010, 100, 011, 101, 110, 111 in [C] [D] [E] [F]
 //blinkComms has 16 distinct options
 //byte blinkComms[16] = {ONE, TWO, FOUR, ONE, THREE, ONE};
@@ -79,8 +79,11 @@ void loop() {
 }
 
 void inertLoop() {
+  if(blinkComms[0] == RESETALL){
+    resetAll();
+  }
       //BANDIT
-  if(treasureType == NotTreasure){
+  else if(treasureType == NotTreasure){
 //  if(!amTreasure && !amTeamTreasure1 && !amTeamTreasure2 && !amTeamTreasure3){    
     skipSendingSecretNumber = false;
     if(waitingAfterLoss && checkWinnerTimer.isExpired()){
@@ -194,40 +197,33 @@ void inertLoop() {
                 checkWinnerTimer.set(CHECKING_DURATION);
                 pointToWinnerTimer.set(POINTING_DURATION);
                 treasureType = TeamTreasure3;
-  //              teamColorTreasure = f;
                 hideSecret = false;
                 if(blinkComms[0] == TWO){
                   blockSteal = true;
                 }
-//                setNullComms();
               }
               else if(getBlinkComms(getLastValueReceivedOnFace(f)) == WINTWO){
                 isFirstTeamTreasure = true;
                 checkWinnerTimer.set(CHECKING_DURATION);
                 pointToWinnerTimer.set(POINTING_DURATION);
                 treasureType = TeamTreasure2;
-  //              teamColorTreasure = f;
                 hideSecret = false;
                 if(blinkComms[0] == TWO){
                   blockSteal = true;
                 }
-//                setNullComms();
               }
               else if(getBlinkComms(getLastValueReceivedOnFace(f)) == WINONE){
                 isFirstTeamTreasure = true;
                 checkWinnerTimer.set(CHECKING_DURATION);
                 pointToWinnerTimer.set(POINTING_DURATION);
                 treasureType = TeamTreasure1;
-  //              teamColorTreasure = f;
                 hideSecret = false;
                 if(blinkComms[0] == TWO){
                   blockSteal = true;
                 }
-//                setNullComms();
               }
     
               else if(getBlinkComms(getLastValueReceivedOnFace(f)) == NOWINNER){
-//                setNullComms();
                 hideSecret = false;
                 switch (blinkComms[0]) {
                   case TWO:
@@ -244,7 +240,6 @@ void inertLoop() {
                 checkWinnerTimer.set(CHECKING_DURATION);
               }
             }
-//          else{
             if(getBlinkComms(getLastValueReceivedOnFace(f)) == TOGGLEHIDESECRET ){
               hideSecret = !hideSecret;
               skipSendingSecretNumber = true;
@@ -258,8 +253,13 @@ void inertLoop() {
               FOREACH_FACE(f) {
                 blinkComms[f] = TOGGLETEAM;
               }
-            }        
-//          }
+            }
+            if(getBlinkComms(getLastValueReceivedOnFace(f)) == RESETALL ){
+              skipSendingSecretNumber = true;
+              FOREACH_FACE(f) {
+                blinkComms[f] = RESETALL;
+              }
+            }
         }
       }
     }
@@ -267,9 +267,6 @@ void inertLoop() {
 
     if(!skipSendingSecretNumber){
       switch (secretNumberIterator) {
-//          case 0:
-//            blinkComms[0] = ONE;
-//            break;
         case 1:
           blinkComms[0] = TWO;
           break;
@@ -287,16 +284,12 @@ void inertLoop() {
   else {
     if(blinkComms[0] == CHECKWINNER){
       checkForWinner();
-//      checkWinnerTimer.set(CHECKING_DURATION);
     }
-    
     if(isFirstTeamTreasure && checkWinnerTimer.isExpired()){
       isFirstTeamTreasure = false;
     }
         
     if ( buttonSingleClicked()) {
-//      checkWinnerTimer.set(CHECKING_DURATION);
-//      pointToWinnerTimer.set(POINTING_DURATION);
       blinkComms[0] = CHECKWINNER;
       blinkComms[1] = CHECKWINNER;
       blinkComms[2] = CHECKWINNER;
@@ -304,19 +297,32 @@ void inertLoop() {
       blinkComms[4] = CHECKWINNER;
       blinkComms[5] = CHECKWINNER;
       signalState = GO;
-//      checkForWinner();
     }
     
-    if (buttonMultiClicked() && buttonClickCount() == 4) {
-      treasureType = NotTreasure;
-      hideSecret = false;
-      twoAvail = true;
-      fourAvail = true;
-      sixAvail = true;
-      isFirstTeamTreasure = true;
-      secretNumberIterator = 1;
-      blockSteal = false;
+    if (buttonMultiClicked()){
+//      if(buttonClickCount() == 4) {
+//        treasureType = NotTreasure;
+//        hideSecret = false;
+//        twoAvail = true;
+//        fourAvail = true;
+//        sixAvail = true;
+//        isFirstTeamTreasure = true;
+//        secretNumberIterator = 1;
+//        blockSteal = false;
+//      }
+      if (buttonClickCount() == 4) {
+        blinkComms[0] = RESETALL;
+        blinkComms[1] = RESETALL;
+        blinkComms[2] = RESETALL;
+        blinkComms[3] = RESETALL;
+        blinkComms[4] = RESETALL;
+        blinkComms[5] = RESETALL;
+        signalState = GO;
+      }
     }
+
+
+
   
 //check for GO phase
     FOREACH_FACE(f) {
@@ -331,7 +337,6 @@ void inertLoop() {
           blinkComms[4] = NULLCOMM;
           blinkComms[5] = NULLCOMM;
   
-//          if(getBlinkComms(getLastValueReceivedOnFace(f)) == NOWINNER ){  
           if(getBlinkComms(getLastValueReceivedOnFace(f)) == CHECKWINNER){
               blinkComms[0] = CHECKWINNER;
               blinkComms[1] = CHECKWINNER;
@@ -343,6 +348,14 @@ void inertLoop() {
 //            checkWinnerTimer.set(CHECKING_DURATION);
 //            pointToWinnerTimer.set(POINTING_DURATION);
           }
+          if(getBlinkComms(getLastValueReceivedOnFace(f)) == RESETALL ){
+            blinkComms[0] = RESETALL;
+            blinkComms[1] = RESETALL;
+            blinkComms[2] = RESETALL;
+            blinkComms[3] = RESETALL;
+            blinkComms[4] = RESETALL;
+            blinkComms[5] = RESETALL;
+          }          
         }
       }
     }
@@ -375,13 +388,23 @@ void resolveLoop() {
   }
 }
 
-void setNullComms(){
-  blinkComms[0] = NULLCOMM;
+void resetAll(){
+  twoAvail = true;
+  fourAvail = true;
+  sixAvail = true;
+  treasureType = NotTreasure;
+  isFirstTeamTreasure = false;
+  hideSecret = false;
+  secretNumberIterator = 1;
+  isFirstTeamTreasure = false;
+  blockSteal = false;
+  blinkComms[0] = TWO;
   blinkComms[1] = NULLCOMM;
   blinkComms[2] = NULLCOMM;
   blinkComms[3] = NULLCOMM;
   blinkComms[4] = NULLCOMM;
   blinkComms[5] = NULLCOMM;
+  signalState = GO;
 }
 
 void checkForWinner(){
